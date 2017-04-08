@@ -1,0 +1,88 @@
+---
+title: "Practical Machine Learning Course Project Write Up"
+author: "Eric Lu"
+date: "4/7/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background  
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.   
+
+## Loading and preprocessing the data
+We load the data sets that we already downloaded.
+```{r}
+setwd("~/Documents")
+trainingData <- read.csv("pml-training.csv")
+testingData <- read.csv("pml-testing.csv")
+## table(trainingData$classe)
+```
+
+We separate the training data into a training set and a validation set.
+```{r, message=FALSE, warning=FALSE}
+library(caret)
+set.seed(999)
+inTrain <- createDataPartition(trainingData$classe, p = 0.75, list = FALSE)
+trainingSet <- trainingData[inTrain, ]
+validationSet <- trainingData[-inTrain, ]
+```
+
+
+## Feature selection  
+Then we clean up near-zero-variance variables and columns with missing values more than 70%.
+```{r}
+NZVcol <- nearZeroVar(trainingSet)
+trainingSet <- trainingSet[, -NZVcol]
+treshold <- dim(trainingSet)[1] * 0.7
+goodCol <- !apply(trainingSet, 2, function(x) sum(is.na(x)) > treshold  || sum(x=="") > treshold)
+trainingSet <- trainingSet[, goodCol]
+table(trainingSet$classe)
+```
+
+## Model comparison
+First, we will use the decision tree model.
+```{r}
+library(rpart)
+library(rpart.plot)
+mod1 <- rpart(classe ~., data=trainingSet, method="class")
+rpart.plot(mod1, extra=102, under=TRUE, faclen=0)
+```
+
+```{r}
+pred1 <- predict(mod1, validationSet, type = "class")
+confusionMatrix(pred1, validationSet$classe)
+```
+We see that accuracy for the decision tree model is 99.96% with a 95% confidence interval of (0.9985, 1).  
+
+Next, we will use the random forest model.
+```{r, message=FALSE, warning=FALSE}
+library(randomForest)
+mod2 <- randomForest(classe ~., data=trainingSet)
+pred2 <- predict(mod2, validationSet, type = "class")
+confusionMatrix(pred2, validationSet$classe)
+```
+
+Based on the results above, we see that we have reached an accuracy of 100% with a 95% confidence interval of (0.9992, 1) by using the random forest model. Therefore, we stop the comparison here and move on with the random forest model.  
+
+## Test data predictions
+Now we apply the model to the testing set.
+```{r, eval=FALSE}
+pred3 <- predict(mod2, testingData)
+print(pred3)
+```
+
+```{r, eval=FALSE}
+pml_write_files = function(x) {
+  n = length(x)
+  for (i in 1:n) {
+    filename = paste0("problem_id_", i, ".txt")
+    write.table(x[i], file=filename, quote=FALSE, row.names=FALSE, col.names=FALSE)
+  }
+}
+pml_write_files(pred3)
+```
+
